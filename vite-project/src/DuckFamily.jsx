@@ -14,7 +14,7 @@ const Duck = ({ isMama }) => (
   </motion.div>
 );
 
-const DuckFamily = () => {
+const DuckFamily = ({ onDucksLeave }) => {
   const [key, setKey] = useState(0);
 
   useEffect(() => {
@@ -25,6 +25,11 @@ const DuckFamily = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Call onDucksLeave when animation completes (when ducks leave right edge)
+  const handleAnimationComplete = () => {
+    if (onDucksLeave) onDucksLeave();
+  };
+
   return (
     <motion.div
       key={key}
@@ -32,6 +37,7 @@ const DuckFamily = () => {
       initial={{ x: "-100%" }}
       animate={{ x: "100vw" }}
       transition={{ duration: 10, ease: "linear" }}
+      onAnimationComplete={handleAnimationComplete}
     >
       <Duck />
       <div style={{ width: 10 }} />

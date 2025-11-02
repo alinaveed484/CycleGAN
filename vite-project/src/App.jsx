@@ -70,10 +70,20 @@ const movingObjects = [
 ];
 
 function App() {
+  const [showDuckLine, setShowDuckLine] = useState(false);
+
+  // Callback for when ducks leave the screen
+  const handleDucksLeave = () => {
+    setShowDuckLine(true);
+    setTimeout(() => setShowDuckLine(false), 3000);
+  };
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileBlob, setSelectedFileBlob] = useState(null);
   const [outputImage, setOutputImage] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [detectedType, setDetectedType] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const constraintsRef = useRef(null);
@@ -82,6 +92,9 @@ function App() {
     const file = event.target.files[0];
     if (file) {
       setSelectedFile(URL.createObjectURL(file));
+      setSelectedFileBlob(file);
+      setOutputImage(null);
+      setDetectedType(null);
       toast.success("File selected!");
     }
   };
@@ -105,30 +118,57 @@ function App() {
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-    const dataUrl = canvas.toDataURL("image/png");
-    setSelectedFile(dataUrl);
-    setIsCameraOpen(false);
-    video.srcObject.getTracks().forEach((track) => track.stop());
-    toast.success("Photo taken!");
+    
+    // Convert canvas to blob
+    canvas.toBlob((blob) => {
+      const dataUrl = canvas.toDataURL("image/png");
+      setSelectedFile(dataUrl);
+      setSelectedFileBlob(blob);
+      setOutputImage(null);
+      setDetectedType(null);
+      setIsCameraOpen(false);
+      video.srcObject.getTracks().forEach((track) => track.stop());
+      toast.success("Photo taken!");
+    }, "image/png");
   };
 
-  const handleSubmit = () => {
-    if (!selectedFile) {
+  const handleSubmit = async () => {
+    if (!selectedFile || !selectedFileBlob) {
       toast.error("Please select a file or take a photo first.");
       return;
     }
-    // Simulate a backend call
-    toast.promise(
-      new Promise((resolve) => setTimeout(() => {
-        setOutputImage(selectedFile); // For now, just display the same image
-        resolve();
-      }, 2000)),
-      {
-        loading: "Processing image...",
-        success: "Image processed successfully!",
-        error: "Failed to process image.",
+
+    setIsProcessing(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('image', selectedFileBlob);
+
+      const response = await fetch('http://localhost:5000/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process image');
       }
-    );
+
+      const data = await response.json();
+      
+      setOutputImage(data.output_image);
+      setDetectedType(data.detected_type);
+      
+      toast.success(
+        `Detected as ${data.detected_type}. Converted to ${
+          data.conversion === 'sketch_to_real' ? 'real face' : 'sketch'
+        }!`
+      );
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to process image. Make sure the backend server is running.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -145,9 +185,9 @@ function App() {
         ))}
         <BouncingShape constraintsRef={constraintsRef} />
         <AvoidingShape />
-        <DuckFamily />
+  <DuckFamily onDucksLeave={handleDucksLeave} />
       </div>
-      <div className="relative z-10">
+  <div className="relative z-10">
         <Toaster position="top-center" reverseOrder={false} />
         <header className="py-4 px-6 border-b border-[#aed3d6] flex justify-center bg-white/30 backdrop-blur-sm">
           <h1 className="text-2xl font-bold">Image-to-Image</h1>
@@ -201,11 +241,26 @@ function App() {
             </div>
             <button
               onClick={handleSubmit}
+              disabled={isProcessing || !selectedFile}
               className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-[#ddedee] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3436] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-[#3e757a] text-[#ddedee] hover:bg-[#3e757a]/90 h-10 px-4 py-2 w-full"
             >
-              Generate Image
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {isProcessing ? (
+                <>
+                  <span className="mr-2">Processing...</span>
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                </>
+              ) : (
+                <>
+                  Generate Image
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
             </button>
+            {detectedType && (
+              <div className="text-sm text-center text-[#1b3436] bg-[#aed3d6]/30 p-2 rounded">
+                Detected: <span className="font-semibold capitalize">{detectedType}</span>
+              </div>
+            )}
           </div>
 
           {/* Output Section */}
@@ -228,6 +283,23 @@ function App() {
         </main>
         <canvas ref={canvasRef} className="hidden" />
       </div>
+      {/* Conditional bottom center line */}
+      {showDuckLine && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(255,255,255,0.8)',
+          padding: '4px 12px',
+          borderRadius: '8px',
+          fontSize: '1rem',
+          color: '#333',
+          zIndex: 1000
+        }}>
+          Why did the ducks cross the Screen?
+        </div>
+      )}
     </div>
   );
 }

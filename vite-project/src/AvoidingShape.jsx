@@ -2,6 +2,7 @@ import { motion, useAnimation, useMotionValue } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 
 const AvoidingShape = () => {
+  const [isChased, setIsChased] = useState(false);
   const controls = useAnimation();
   const shapeRef = useRef(null);
   const timeoutRef = useRef(null);
@@ -51,6 +52,7 @@ const AvoidingShape = () => {
       const distance = Math.sqrt(distX * distX + distY * distY);
 
       if (distance < 150) {
+        setIsChased(true);
         const newX = x.get() + (distX / distance) * 20;
         const newY = y.get() + (distY / distance) * 20;
 
@@ -70,6 +72,7 @@ const AvoidingShape = () => {
           transition: { type: "spring", stiffness: 500, damping: 10 },
         });
       } else {
+        setIsChased(false);
         timeoutRef.current = setTimeout(returnToStartPosition, 200);
       }
     }
@@ -89,7 +92,7 @@ const AvoidingShape = () => {
   return (
     <motion.div
       ref={shapeRef}
-      className="absolute"
+      className="absolute flex items-center justify-center"
       style={{
         width: 50,
         height: 50,
@@ -99,9 +102,17 @@ const AvoidingShape = () => {
         left: "50%",
         x,
         y,
+        fontSize: "2rem",
+        userSelect: "none"
       }}
       animate={controls}
-    />
+    >
+      {isChased ? (
+        <span role="img" aria-label="sad">😢</span>
+      ) : (
+        <span role="img" aria-label="smile">😊</span>
+      )}
+    </motion.div>
   );
 };
 
